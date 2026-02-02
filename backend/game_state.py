@@ -103,11 +103,8 @@ class GameState:
             fuel=config.INITIAL_FUEL
         )
         
-        # Generate environment
+        # Generate environment (only walls now, removed doors/windows/trees)
         self._generate_walls()
-        self._generate_doors()
-        self._generate_windows()
-        self._generate_trees()
         self._generate_fuel_stations()
         self._generate_light_nodes()
     
@@ -115,8 +112,8 @@ class GameState:
         """Check if position is within grid bounds"""
         return 0 <= pos.x < self.grid_size and 0 <= pos.y < self.grid_size
     
-    def _is_position_free(self, pos: Position) -> bool:
-        """Check if position is free for placement"""
+    def _is_position_free(self, pos: Position, min_distance: int = 0) -> bool:
+        """Check if position is free for placement with optional spacing"""
         if not self._is_valid_position(pos):
             return False
         
@@ -126,83 +123,53 @@ class GameState:
                 return False
         
         # Check if cell is empty
-        return self.grid[pos.y][pos.x] == CellType.EMPTY
+        if self.grid[pos.y][pos.x] != CellType.EMPTY:
+            return False
+        
+        # Check spacing from other objects
+        if min_distance > 0:
+            for dy in range(-min_distance, min_distance + 1):
+                for dx in range(-min_distance, min_distance + 1):
+                    check_pos = Position(pos.x + dx, pos.y + dy)
+                    if self._is_valid_position(check_pos):
+                        if self.grid[check_pos.y][check_pos.x] != CellType.EMPTY:
+                            return False
+        
+        return True
     
     def _generate_walls(self):
-        """Generate walls randomly avoiding agent positions"""
+        """Generate walls with proper spacing"""
         placed = 0
         attempts = 0
-        max_attempts = config.NUM_WALLS * 10
+        max_attempts = config.NUM_WALLS * 20
         
         while placed < config.NUM_WALLS and attempts < max_attempts:
-            x, y = random.randint(2, self.grid_size - 3), random.randint(2, self.grid_size - 3)
+            x, y = random.randint(3, self.grid_size - 4), random.randint(3, self.grid_size - 4)
             pos = Position(x, y)
             
-            if self._is_position_free(pos):
+            # Ensure minimum spacing and not near agent spawn points
+            agent_positions = [Position(1, 1), Position(self.grid_size - 2, self.grid_size - 2)]
+            too_close_to_agent = any(pos.distance_to(ap) < config.MIN_AGENT_CLEARANCE 
+                                     for ap in agent_positions)
+            
+            if not too_close_to_agent and self._is_position_free(pos, config.MIN_SPACING):
                 self.grid[y][x] = CellType.WALL
                 placed += 1
             
             attempts += 1
     
-    def _generate_doors(self):
-        """Generate doors (closed initially)"""
-        placed = 0
-        attempts = 0
-        max_attempts = config.NUM_DOORS * 10
-        
-        while placed < config.NUM_DOORS and attempts < max_attempts:
-            x, y = random.randint(1, self.grid_size - 2), random.randint(1, self.grid_size - 2)
-            pos = Position(x, y)
-            
-            if self._is_position_free(pos):
-                self.grid[y][x] = CellType.DOOR
-                placed += 1
-            
-            attempts += 1
-    
-    def _generate_windows(self):
-        """Generate windows (for line-of-sight)"""
-        placed = 0
-        attempts = 0
-        max_attempts = config.NUM_WINDOWS * 10
-        
-        while placed < config.NUM_WINDOWS and attempts < max_attempts:
-            x, y = random.randint(1, self.grid_size - 2), random.randint(1, self.grid_size - 2)
-            pos = Position(x, y)
-            
-            if self._is_position_free(pos):
-                self.grid[y][x] = CellType.WINDOW
-                placed += 1
-            
-            attempts += 1
-    
-    def _generate_trees(self):
-        """Generate trees (partial cover)"""
-        placed = 0
-        attempts = 0
-        max_attempts = config.NUM_TREES * 10
-        
-        while placed < config.NUM_TREES and attempts < max_attempts:
-            x, y = random.randint(1, self.grid_size - 2), random.randint(1, self.grid_size - 2)
-            pos = Position(x, y)
-            
-            if self._is_position_free(pos):
-                self.grid[y][x] = CellType.TREE
-                placed += 1
-            
-            attempts += 1
-    
     def _generate_fuel_stations(self):
-        """Generate fuel stations"""
+        """Generate fuel stations with proper spacing"""
         placed = 0
         attempts = 0
-        max_attempts = config.NUM_FUEL_STATIONS * 10
+        max_attempts = config.NUM_FUEL_STATIONS * 20
         
         while placed < config.NUM_FUEL_STATIONS and attempts < max_attempts:
-            x, y = random.randint(2, self.grid_size - 3), random.randint(2, self.grid_size - 3)
+            x, y = random.randint(3, self.grid_size - 4), random.randint(3, self.grid_size - 4)
             pos = Position(x, y)
             
-            if self._is_position_free(pos):
+            # Place fuel stations on grid but allow agents to pass through them
+            if self._is_position_free(pos, config.MIN_SPACING):
                 self.grid[y][x] = CellType.FUEL_STATION
                 self.fuel_stations.append(FuelStation(
                     position=pos,
@@ -213,16 +180,17 @@ class GameState:
             attempts += 1
     
     def _generate_light_nodes(self):
-        """Generate light nodes (control points)"""
+        """Generate light nodes (control points) with proper spacing"""
         placed = 0
         attempts = 0
-        max_attempts = config.NUM_LIGHT_NODES * 10
+        max_attempts = config.NUM_LIGHT_NODES * 20
         
         while placed < config.NUM_LIGHT_NODES and attempts < max_attempts:
-            x, y = random.randint(1, self.grid_size - 2), random.randint(1, self.grid_size - 2)
+            x, y = random.randint(2, self.grid_size - 3), random.randint(2, self.grid_size - 3)
             pos = Position(x, y)
             
-            if self._is_position_free(pos):
+            # Place light nodes on grid but allow agents to pass through them
+            if self._is_position_free(pos, config.MIN_SPACING):
                 self.grid[y][x] = CellType.LIGHT_NODE
                 self.light_nodes.append(LightNode(position=pos))
                 placed += 1
@@ -242,14 +210,9 @@ class GameState:
             
             cell_type = self.grid[new_pos.y][new_pos.x]
             
-            # Can move to empty, fuel stations, light nodes, open doors
-            if cell_type == CellType.EMPTY:
-                moves.append(new_pos)
-            elif cell_type == CellType.FUEL_STATION:
-                moves.append(new_pos)
-            elif cell_type == CellType.LIGHT_NODE:
-                moves.append(new_pos)
-            elif cell_type == CellType.DOOR and new_pos in self.doors_open:
+            # Can move to any cell except walls
+            # Agents can now pass through fuel stations and light nodes
+            if cell_type != CellType.WALL:
                 moves.append(new_pos)
         
         return moves
@@ -270,10 +233,9 @@ class GameState:
         
         for node in self.light_nodes:
             if node.position == agent.position:
-                if not node.is_controlled():
-                    # Empty node - needs 1 fuel
-                    if agent.fuel >= config.FUEL_COST_CONTROL_EMPTY:
-                        return node
+                # Empty node - needs 1 fuel
+                if not node.is_controlled() and agent.fuel >= config.FUEL_COST_CONTROL_EMPTY:
+                    return node
                 elif node.controlled_by != agent_type:
                     # Opponent's node - needs 2 fuel
                     if agent.fuel >= config.FUEL_COST_CAPTURE:
@@ -287,15 +249,16 @@ class GameState:
         old_pos = copy.copy(agent.position)
         agent.position = target
         
-        # Open door if moved to one
-        if self.grid[target.y][target.x] == CellType.DOOR:
-            self.doors_open.add(target)
+        # Consume fuel for movement
+        agent.fuel -= config.FUEL_COST_MOVE
         
         action = {
             "type": "move",
             "agent": agent_type.value,
             "from": {"x": old_pos.x, "y": old_pos.y},
             "to": {"x": target.x, "y": target.y},
+            "fuel_cost": config.FUEL_COST_MOVE,
+            "new_fuel": agent.fuel,
             "turn": self.turn
         }
         
@@ -340,6 +303,7 @@ class GameState:
         """Execute a control/capture node action"""
         agent = self.agents[agent_type]
         
+        # Find node at agent's position
         for node in self.light_nodes:
             if node.position == agent.position:
                 was_controlled = node.is_controlled()

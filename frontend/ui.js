@@ -32,17 +32,16 @@ class UIController {
     
     onStartGame() {
         this.elements.startBtn.disabled = true;
-        this.showCinematic();
-    }
-    
-    showCinematic() {
-        this.elements.cinematic.classList.remove('hidden');
-        
-        // Hide after 12 seconds
-        setTimeout(() => {
-            this.elements.cinematic.classList.add('hidden');
-            this.addLogEntry('Mission started. Agents are now active.');
-        }, 12000);
+        // Start game immediately without cinematic
+        this.addLogEntry('Mission started. Agents are now active.');
+        // Call game controller if available
+        if (typeof gameController !== 'undefined' && gameController.isConnected) {
+            gameController.startGame();
+        } else {
+            console.error('Game controller not ready');
+            this.addLogEntry('Error: Not connected to server. Please refresh.');
+            this.elements.startBtn.disabled = false;
+        }
     }
     
     updateAgentStats(agentType, data) {

@@ -108,13 +108,13 @@ class MinimaxAI:
         actions = []
         agent = state.agents[agent_type]
         
-        # 1. Control/Capture node at current position
+        # 1. Control/Capture node at current position - ALWAYS consider this
         node = state.can_control_node(agent_type)
         if node:
             actions.append(("control_node", None))
         
-        # 2. Refuel at current position (if low on fuel)
-        if state.can_refuel(agent_type) and agent.fuel < config.MAX_FUEL * 0.5:
+        # 2. Refuel at current position (consider when fuel is not full)
+        if state.can_refuel(agent_type) and agent.fuel < config.MAX_FUEL:
             actions.append(("refuel", None))
         
         # 3. Move to adjacent positions
@@ -122,36 +122,38 @@ class MinimaxAI:
         for move_pos in possible_moves:
             actions.append(("move", move_pos))
         
-        # Prioritize strategic actions
+        # Prioritize strategic actions for alpha-beta efficiency
         actions = self._prioritize_actions(state, agent_type, actions)
         
         return actions
     
     def _prioritize_actions(self, state: GameState, agent_type: AgentType, 
                            actions: List[Tuple[str, Optional[Position]]]) -> List[Tuple[str, Optional[Position]]]:
-        """Prioritize actions based on strategic value"""
+        """Prioritize actions based on strategic value for better alpha-beta pruning"""
+        agent = state.agents[agent_type]
+        opponent_type = (AgentType.INSTINCT if agent_type == AgentType.STRATEGIST 
+                        else AgentType.STRATEGIST)
+        
         # Separate actions by type
         control_actions = [a for a in actions if a[0] == "control_node"]
         refuel_actions = [a for a in actions if a[0] == "refuel"]
         move_actions = [a for a in actions if a[0] == "move"]
         
-        # Strategic priority: control nodes > refuel (when needed) > move
         prioritized = []
         
-        # Control/capture nodes first
+        # 1. Control/capture nodes FIRST (this is how you win!)
         prioritized.extend(control_actions)
         
-        # Refuel if critically low
-        agent = state.agents[agent_type]
-        if agent.fuel < config.FUEL_COST_CAPTURE:
+        # 2. Refuel if critically low (can't do anything without fuel)
+        if agent.fuel <= config.FUEL_COST_CONTROL_EMPTY:
             prioritized.extend(refuel_actions)
         
-        # Then moves (sorted by proximity to objectives)
+        # 3. Moves sorted by strategic value
         move_actions = self._sort_moves_by_value(state, agent_type, move_actions)
         prioritized.extend(move_actions)
         
-        # Finally refuel if not critically low
-        if agent.fuel >= config.FUEL_COST_CAPTURE:
+        # 4. Refuel if moderately low
+        if config.FUEL_COST_CONTROL_EMPTY < agent.fuel < config.MAX_FUEL * 0.5:
             prioritized.extend(refuel_actions)
         
         return prioritized
@@ -160,32 +162,42 @@ class MinimaxAI:
                             move_actions: List[Tuple[str, Position]]) -> List[Tuple[str, Position]]:
         """Sort move actions by strategic value"""
         agent = state.agents[agent_type]
+        opponent_type = (AgentType.INSTINCT if agent_type == AgentType.STRATEGIST 
+                        else AgentType.STRATEGIST)
         
         def move_value(action):
             _, target = action
             value = 0
             
+            # HIGH PRIORITY: Moves that put us ON a light node we can control
+            for node in state.light_nodes:
+                if node.position.x == target.x and node.position.y == target.y:
+                    if not node.is_controlled():
+                        if agent.fuel >= config.FUEL_COST_CONTROL_EMPTY:
+                            value += 100  # Can control next turn!
+                    elif node.controlled_by == opponent_type:
+                        if agent.fuel >= config.FUEL_COST_CAPTURE:
+                            value += 80  # Can capture next turn!
+            
             # Distance to unclaimed nodes
             unclaimed = [n for n in state.light_nodes if not n.is_controlled()]
             if unclaimed:
                 min_dist = min(target.distance_to(n.position) for n in unclaimed)
-                value += (20 - min_dist)
+                value += max(0, 30 - min_dist * 2)
             
-            # Distance to opponent nodes
-            opponent_type = (AgentType.INSTINCT if agent_type == AgentType.STRATEGIST 
-                           else AgentType.STRATEGIST)
+            # Distance to opponent nodes (for capturing)
             opponent_nodes = [n for n in state.light_nodes if n.controlled_by == opponent_type]
-            if opponent_nodes:
+            if opponent_nodes and agent.fuel >= config.FUEL_COST_CAPTURE:
                 min_dist = min(target.distance_to(n.position) for n in opponent_nodes)
-                value += (15 - min_dist) * 0.5
+                value += max(0, 25 - min_dist * 2)
             
-            # Proximity to fuel if low
-            if agent.fuel < config.MAX_FUEL * 0.4:
+            # Move toward fuel station if low on fuel
+            if agent.fuel < config.MAX_FUEL * 0.3:
                 active_stations = [fs for fs in state.fuel_stations 
                                   if fs.is_active and not fs.is_depleted()]
                 if active_stations:
                     min_dist = min(target.distance_to(fs.position) for fs in active_stations)
-                    value += (10 - min_dist)
+                    value += max(0, 20 - min_dist * 3)
             
             return value
         
@@ -197,10 +209,6 @@ class MinimaxAI:
         if action_type == "move":
             agent = state.agents[agent_type]
             agent.position = target
-            
-            # Open doors
-            if state.grid[target.y][target.x] == CellType.DOOR:
-                state.doors_open.add(target)
         
         elif action_type == "refuel":
             agent = state.agents[agent_type]

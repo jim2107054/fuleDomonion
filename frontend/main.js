@@ -158,10 +158,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wait for other components to initialize
     setTimeout(() => {
         gameController = new GameController();
-        
-        // Override UI start button
-        document.getElementById('start-btn').addEventListener('click', () => {
-            gameController.startGame();
-        });
     }, 500);
 });

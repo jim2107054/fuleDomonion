@@ -156,7 +156,7 @@ class MCTSAI:
         """
         sim_state = state.clone()
         current_agent = starting_agent
-        max_sim_turns = 10  # Limit simulation depth
+        max_sim_turns = config.MCTS_SIM_DEPTH  # Use configurable simulation depth
         
         for _ in range(max_sim_turns):
             if sim_state.is_game_over():
@@ -200,20 +200,17 @@ class MCTSAI:
         actions = []
         agent = state.agents[agent_type]
         
-        # Control node
+        # Control node - highest priority
         node = state.can_control_node(agent_type)
         if node:
             actions.append(("control_node", None))
         
-        # Refuel (only if low)
-        if state.can_refuel(agent_type) and agent.fuel < config.MAX_FUEL * 0.3:
+        # Refuel when needed
+        if state.can_refuel(agent_type) and agent.fuel < config.MAX_FUEL * 0.5:
             actions.append(("refuel", None))
         
-        # Move (limit to few best moves for speed)
+        # All possible moves for full exploration
         possible_moves = state.get_possible_moves(agent_type)
-        if len(possible_moves) > 4:
-            possible_moves = random.sample(possible_moves, 4)
-        
         for move_pos in possible_moves:
             actions.append(("move", move_pos))
         
@@ -226,9 +223,6 @@ class MCTSAI:
         if action_type == "move":
             agent = state.agents[agent_type]
             agent.position = target
-            
-            if state.grid[target.y][target.x] == CellType.DOOR:
-                state.doors_open.add(target)
         
         elif action_type == "refuel":
             agent = state.agents[agent_type]

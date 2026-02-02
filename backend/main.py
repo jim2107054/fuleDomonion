@@ -89,10 +89,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def start_game_loop(websocket: WebSocket):
     """Run the game loop, alternating AI turns"""
-    global game
+    global game, minimax_ai, mcts_ai
     
-    if game is None:
-        await start_game()
+    # Always reset game state when starting
+    game = GameState()
+    minimax_ai = MinimaxAI(AgentType.STRATEGIST)
+    mcts_ai = MCTSAI(AgentType.INSTINCT)
     
     # Send game start notification
     await websocket.send_json({
@@ -100,8 +102,8 @@ async def start_game_loop(websocket: WebSocket):
         "data": game.to_dict()
     })
     
-    # Wait a bit for cinematic intro
-    await asyncio.sleep(3)
+    # Small initial delay before starting
+    await asyncio.sleep(0.5)
     
     # Game loop
     while not game.is_game_over():
@@ -157,8 +159,8 @@ async def start_game_loop(websocket: WebSocket):
                 }
             })
         
-        # Wait before next turn
-        await asyncio.sleep(config.WS_UPDATE_DELAY)
+        # Wait before next turn (configurable delay for visibility)
+        await asyncio.sleep(config.TURN_DELAY)
     
     # Game over - calculate final scores
     calculate_final_scores(game)

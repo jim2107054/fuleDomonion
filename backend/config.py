@@ -1,5 +1,5 @@
 # Game Configuration
-GRID_SIZE = 12  # 12x12 grid
+GRID_SIZE = 16  # 16x16 grid (bigger for better spacing)
 MAX_TURNS = 100  # Maximum game turns
 MAX_FUEL = 20  # Maximum fuel per agent
 INITIAL_FUEL = 10  # Starting fuel
@@ -22,17 +22,20 @@ SCORE_FUEL_EFFICIENCY = 3  # Bonus for efficient fuel use
 SCORE_CAPTURE = 15  # Bonus for capturing opponent node
 
 # AI parameters
-MINIMAX_DEPTH = 3  # Minimax search depth
-MCTS_SIMULATIONS = 100  # MCTS simulation count
+MINIMAX_DEPTH = 5  # Minimax search depth (increased for better lookahead)
+MCTS_SIMULATIONS = 500  # MCTS simulation count (increased for better exploration)
 MCTS_EXPLORATION = 1.414  # UCB1 exploration constant
+MCTS_SIM_DEPTH = 20  # Maximum simulation depth for MCTS rollouts
 
-# Environment elements (positions will be generated)
-NUM_WALLS = 15
-NUM_DOORS = 5
-NUM_WINDOWS = 8
-NUM_TREES = 6
-NUM_FUEL_STATIONS = 4
-NUM_LIGHT_NODES = 10
+# Environment elements (fewer obstacles, better spacing)
+NUM_WALLS = 8  # Reduced obstacles
+NUM_FUEL_STATIONS = 5  # More fuel stations
+NUM_LIGHT_NODES = 12  # More control points
+
+# Spacing rules - minimum distance between objects
+MIN_SPACING = 2  # At least 2 cells between major objects
+MIN_AGENT_CLEARANCE = 3  # Clear area around agent spawn points
 
 # WebSocket settings
-WS_UPDATE_DELAY = 0.5  # Seconds between turn updates
+WS_UPDATE_DELAY = 0.1  # Seconds between turn updates (100ms for visibility)
+TURN_DELAY = 0.3  # Configurable delay between agent turns (300ms for visibility)

@@ -12,31 +12,74 @@ def evaluate_state(state: GameState, agent_type: AgentType) -> float:
     
     score = 0.0
     
-    # 1. Node control (most important)
+    # 1. Node control (MOST IMPORTANT - this determines the winner)
+    node_diff = agent.nodes_controlled - opponent.nodes_controlled
+    score += node_diff * config.SCORE_NODE_CONTROL * 3  # Triple weight for node control
+    
+    # 2. Absolute node count bonus
     score += agent.nodes_controlled * config.SCORE_NODE_CONTROL
-    score -= opponent.nodes_controlled * config.SCORE_NODE_CONTROL
     
-    # 2. Fuel remaining
+    # 3. Fuel remaining (important for future actions)
     score += agent.fuel * config.SCORE_FUEL_REMAINING
-    score -= opponent.fuel * config.SCORE_FUEL_REMAINING * 0.5  # Opponent fuel matters less
+    score -= opponent.fuel * config.SCORE_FUEL_REMAINING * 0.3
     
-    # 3. Strategic positioning
+    # 4. Strategic positioning
     position_score = evaluate_position(state, agent_type)
     score += position_score * config.SCORE_STRATEGIC_POSITION
     
-    # 4. Proximity to unclaimed nodes
+    # 5. Proximity to unclaimed nodes (critical for expansion)
     unclaimed_bonus = evaluate_unclaimed_nodes_proximity(state, agent_type)
-    score += unclaimed_bonus
+    score += unclaimed_bonus * 2  # Double weight - path to victory
     
-    # 5. Fuel station access
+    # 6. Fuel station access
     fuel_access_bonus = evaluate_fuel_station_access(state, agent_type)
     score += fuel_access_bonus
     
-    # 6. Line of sight / fog considerations
-    visibility_bonus = evaluate_visibility(state, agent_type)
-    score += visibility_bonus
+    # 7. Threat assessment - penalize if opponent is near our nodes
+    threat_penalty = evaluate_threats(state, agent_type)
+    score -= threat_penalty
+    
+    # 8. Opportunity bonus - reward being near opponent's nodes
+    opportunity_bonus = evaluate_opportunities(state, agent_type)
+    score += opportunity_bonus
     
     return score
+
+def evaluate_threats(state: GameState, agent_type: AgentType) -> float:
+    """Evaluate how threatened our controlled nodes are"""
+    opponent_type = AgentType.INSTINCT if agent_type == AgentType.STRATEGIST else AgentType.STRATEGIST
+    opponent = state.agents[opponent_type]
+    
+    threat = 0.0
+    
+    # Check distance from opponent to our nodes
+    our_nodes = [n for n in state.light_nodes if n.controlled_by == agent_type]
+    for node in our_nodes:
+        dist = opponent.position.distance_to(node.position)
+        if dist <= 2:
+            threat += 15  # High threat
+        elif dist <= 4:
+            threat += 5   # Medium threat
+    
+    return threat
+
+def evaluate_opportunities(state: GameState, agent_type: AgentType) -> float:
+    """Evaluate opportunities to capture opponent's nodes"""
+    agent = state.agents[agent_type]
+    opponent_type = AgentType.INSTINCT if agent_type == AgentType.STRATEGIST else AgentType.STRATEGIST
+    
+    opportunity = 0.0
+    
+    # Check distance to opponent's nodes
+    enemy_nodes = [n for n in state.light_nodes if n.controlled_by == opponent_type]
+    for node in enemy_nodes:
+        dist = agent.position.distance_to(node.position)
+        if dist <= 1 and agent.fuel >= config.FUEL_COST_CAPTURE:
+            opportunity += 20  # Can capture next turn!
+        elif dist <= 3 and agent.fuel >= config.FUEL_COST_CAPTURE:
+            opportunity += 8   # Good opportunity
+    
+    return opportunity
 
 def evaluate_position(state: GameState, agent_type: AgentType) -> float:
     """Evaluate strategic value of agent's position"""
