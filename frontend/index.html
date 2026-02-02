@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Dominion - AI Strategy Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0f;
+            color: #00ff88;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Title */
+        #title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        #title h1 {
+            font-size: 3em;
+            color: #00ff88;
+            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            letter-spacing: 5px;
+            margin-bottom: 10px;
+        }
+
+        #title p {
+            font-size: 1.2em;
+            color: #00ccff;
+            text-shadow: 0 0 10px #00ccff;
+        }
+
+        /* Agent Info Panels */
+        .agent-panel {
+            position: absolute;
+            top: 120px;
+            padding: 20px;
+            background: rgba(10, 10, 20, 0.8);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            min-width: 250px;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        #strategist-panel {
+            left: 20px;
+        }
+
+        #instinct-panel {
+            right: 20px;
+        }
+
+        .agent-panel h2 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #00ff88;
+            text-shadow: 0 0 10px #00ff88;
+        }
+
+        .agent-panel.instinct h2 {
+            color: #ff00ff;
+            text-shadow: 0 0 10px #ff00ff;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        .stat-label {
+            color: #888;
+        }
+
+        .stat-value {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        /* Turn Counter */
+        #turn-counter {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background: rgba(10, 10, 20, 0.9);
+            border: 2px solid #00ccff;
+            border-radius: 10px;
+            text-align: center;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(0, 204, 255, 0.3);
+        }
+
+        #turn-counter .turn-text {
+            font-size: 1.3em;
+            color: #00ccff;
+        }
+
+        /* Action Log */
+        #action-log {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            max-height: 150px;
+            padding: 15px;
+            background: rgba(10, 10, 20, 0.9);
+            border: 2px solid #ffaa00;
+            border-radius: 10px;
+            overflow-y: auto;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.3);
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            font-size: 0.95em;
+            color: #ffaa00;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* Control Panel */
+        #control-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px;
+            background: rgba(10, 10, 20, 0.9);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        button {
+            padding: 12px 24px;
+            margin: 5px;
+            background: #00ff88;
+            color: #0a0a0f;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #00ccff;
+            box-shadow: 0 0 15px #00ccff;
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* Cinematic Overlay */
+        #cinematic {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        #cinematic.hidden {
+            display: none;
+        }
+
+        .cinematic-text {
+            font-size: 2em;
+            color: #00ff88;
+            text-align: center;
+            margin: 20px;
+            text-shadow: 0 0 20px #00ff88;
+            opacity: 0;
+            animation: cinematicFade 3s ease-in-out forwards;
+        }
+
+        @keyframes cinematicFade {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 4px solid rgba(0, 255, 136, 0.3);
+            border-top: 4px solid #00ff88;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Game Over Screen */
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 40px;
+            background: rgba(10, 10, 20, 0.95);
+            border: 3px solid #00ff88;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 200;
+            display: none;
+            pointer-events: auto;
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
+        }
+
+        #game-over.show {
+            display: block;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -60%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+
+        #game-over h2 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #00ff88;
+            text-shadow: 0 0 20px #00ff88;
+        }
+
+        #game-over .winner-name {
+            font-size: 2em;
+            margin: 20px 0;
+            color: #ffaa00;
+            text-shadow: 0 0 15px #ffaa00;
+        }
+
+        #game-over .final-stats {
+            margin: 20px 0;
+            font-size: 1.2em;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00ff88;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <!-- HUD Overlay -->
+    <div id="hud">
+        <!-- Title -->
+        <div id="title">
+            <h1>FUEL DOMINION</h1>
+            <p>Strategic AI Combat in the Dark</p>
+        </div>
+
+        <!-- Agent Panels -->
+        <div id="strategist-panel" class="agent-panel">
+            <h2>⚙️ UNIT S - STRATEGIST</h2>
+            <div class="stat-row">
+                <span class="stat-label">Algorithm:</span>
+                <span class="stat-value">Minimax</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Nodes:</span>
+                <span class="stat-value" id="strategist-nodes">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Fuel:</span>
+                <span class="stat-value" id="strategist-fuel">10</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Score:</span>
+                <span class="stat-value" id="strategist-score">0</span>
+            </div>
+        </div>
+
+        <div id="instinct-panel" class="agent-panel instinct">
+            <h2>🎯 UNIT I - INSTINCT</h2>
+            <div class="stat-row">
+                <span class="stat-label">Algorithm:</span>
+                <span class="stat-value">MCTS</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Nodes:</span>
+                <span class="stat-value" id="instinct-nodes">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Fuel:</span>
+                <span class="stat-value" id="instinct-fuel">10</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Score:</span>
+                <span class="stat-value" id="instinct-score">0</span>
+            </div>
+        </div>
+
+        <!-- Turn Counter -->
+        <div id="turn-counter">
+            <div class="turn-text">Turn: <span id="current-turn">0</span> / <span id="max-turns">100</span></div>
+        </div>
+
+        <!-- Action Log -->
+        <div id="action-log">
+            <div class="log-entry">Game initialized. Press START to begin.</div>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="control-panel">
+            <button id="start-btn">START GAME</button>
+            <button id="reset-btn">RESET</button>
+        </div>
+    </div>
+
+    <!-- Cinematic Intro -->
+    <div id="cinematic" class="hidden">
+        <div class="cinematic-text" style="animation-delay: 0s;">
+            After a massive blackout...
+        </div>
+        <div class="cinematic-text" style="animation-delay: 3s;">
+            The city lies in darkness.
+        </div>
+        <div class="cinematic-text" style="animation-delay: 6s;">
+            Two autonomous units awaken...
+        </div>
+        <div class="cinematic-text" style="animation-delay: 9s;">
+            Their mission: Control the light.
+        </div>
+        <div class="spinner" style="margin-top: 40px;"></div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over">
+        <h2>MISSION COMPLETE</h2>
+        <div class="winner-name" id="winner-text">UNIT S WINS</div>
+        <div class="final-stats">
+            <div class="stat-row">
+                <span class="stat-label">Unit S Nodes:</span>
+                <span class="stat-value" id="final-strategist-nodes">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Unit I Nodes:</span>
+                <span class="stat-value" id="final-instinct-nodes">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Unit S Score:</span>
+                <span class="stat-value" id="final-strategist-score">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Unit I Score:</span>
+                <span class="stat-value" id="final-instinct-score">0</span>
+            </div>
+        </div>
+        <button onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Game Scripts -->
+    <script src="/static/scene.js"></script>
+    <script src="/static/ui.js"></script>
+    <script src="/static/main.js"></script>
+</body>
+</html>
