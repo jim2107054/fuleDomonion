@@ -21,11 +21,11 @@ SCORE_STRATEGIC_POSITION = 5  # Bonus for good positioning
 SCORE_FUEL_EFFICIENCY = 3  # Bonus for efficient fuel use
 SCORE_CAPTURE = 15  # Bonus for capturing opponent node
 
-# AI parameters
-MINIMAX_DEPTH = 5  # Minimax search depth (increased for better lookahead)
-MCTS_SIMULATIONS = 500  # MCTS simulation count (increased for better exploration)
-MCTS_EXPLORATION = 1.414  # UCB1 exploration constant
-MCTS_SIM_DEPTH = 20  # Maximum simulation depth for MCTS rollouts
+# AI parameters - BALANCED for fair competition
+MINIMAX_DEPTH = 4  # Minimax search depth (balanced)
+MCTS_SIMULATIONS = 1000  # MCTS simulation count (increased significantly for fairness)
+MCTS_EXPLORATION = 1.5  # UCB1 exploration constant (slightly higher for better exploration)
+MCTS_SIM_DEPTH = 30  # Maximum simulation depth for MCTS rollouts (deeper lookahead)
 
 # Environment elements (fewer obstacles, better spacing)
 NUM_WALLS = 8  # Reduced obstacles

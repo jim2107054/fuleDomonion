@@ -22,25 +22,51 @@ class MCTSNode:
         self.untried_actions = self._get_possible_actions()
     
     def _get_possible_actions(self) -> List[Tuple[str, Optional[Position]]]:
-        """Get all possible actions from this state"""
+        """Get all possible actions from this state, prioritized for smart expansion"""
         actions = []
         agent = self.state.agents[self.agent_type]
+        opponent_type = (AgentType.INSTINCT if self.agent_type == AgentType.STRATEGIST 
+                        else AgentType.STRATEGIST)
         
-        # Control/Capture node
+        # PRIORITY 1: Control/Capture node - this wins the game!
         node = self.state.can_control_node(self.agent_type)
         if node:
             actions.append(("control_node", None))
         
-        # Refuel
-        if self.state.can_refuel(self.agent_type):
+        # PRIORITY 2: Refuel when needed
+        if self.state.can_refuel(self.agent_type) and agent.fuel < config.MAX_FUEL:
             actions.append(("refuel", None))
         
-        # Move
+        # PRIORITY 3: Moves - sorted by strategic value
         possible_moves = self.state.get_possible_moves(self.agent_type)
+        
+        # Score each move for prioritization
+        scored_moves = []
         for move_pos in possible_moves:
+            score = 0
+            
+            # Moves onto light nodes are highest priority
+            for ln in self.state.light_nodes:
+                if ln.position.x == move_pos.x and ln.position.y == move_pos.y:
+                    if not ln.is_controlled() and agent.fuel >= config.FUEL_COST_CONTROL_EMPTY:
+                        score += 100
+                    elif ln.controlled_by == opponent_type and agent.fuel >= config.FUEL_COST_CAPTURE:
+                        score += 80
+            
+            # Closer to unclaimed nodes is better
+            unclaimed = [n for n in self.state.light_nodes if not n.is_controlled()]
+            if unclaimed:
+                min_dist = min(move_pos.distance_to(n.position) for n in unclaimed)
+                score += max(0, 20 - min_dist)
+            
+            scored_moves.append((score, move_pos))
+        
+        # Sort by score descending, then shuffle within similar scores for variety
+        scored_moves.sort(key=lambda x: x[0], reverse=True)
+        
+        for _, move_pos in scored_moves:
             actions.append(("move", move_pos))
         
-        random.shuffle(actions)
         return actions
     
     def is_fully_expanded(self) -> bool:
